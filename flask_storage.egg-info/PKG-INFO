@@ -1,0 +1,39 @@
+Metadata-Version: 2.4
+Name: flask-storage
+Version: 1.0.0
+Summary: Multi-provider file-storage extension for Flask
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Framework :: Flask
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: Flask>=2.0
+Requires-Dist: Werkzeug>=2.0
+Requires-Dist: pillow>=9.0.1
+Provides-Extra: s3
+Requires-Dist: boto3>=1.20; extra == "s3"
+Provides-Extra: gcs
+Requires-Dist: google-cloud-storage>=2.0; extra == "gcs"
+Provides-Extra: azure
+Requires-Dist: azure-storage-blob>=12.0; extra == "azure"
+Provides-Extra: cloudinary
+Requires-Dist: cloudinary>=1.30; extra == "cloudinary"
+Provides-Extra: all
+Requires-Dist: boto3>=1.20; extra == "all"
+Requires-Dist: google-cloud-storage>=2.0; extra == "all"
+Requires-Dist: azure-storage-blob>=12.0; extra == "all"
+Requires-Dist: cloudinary>=1.30; extra == "all"
+Dynamic: classifier
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
