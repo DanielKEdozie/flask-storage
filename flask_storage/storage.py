@@ -46,6 +46,16 @@ _REGISTRY: dict[str, str] = {
     'cloudinary' : 'flask_storage.drivers.cloudinary.CloudinaryDriver',
 }
 
+#: Watermarked uploads are re-encoded, so the output format must follow the
+#: stored extension rather than always defaulting to JPEG.
+_PIL_FORMATS: dict[str, str] = {
+    'jpg' : 'JPEG',
+    'jpeg': 'JPEG',
+    'png' : 'PNG',
+    'webp': 'WEBP',
+    'gif' : 'GIF',
+}
+
 
 def _import_driver(dotted: str) -> type:
     module_path, cls_name = dotted.rsplit('.', 1)
@@ -127,10 +137,12 @@ class Storage:
         if should_watermark:
             wm_path = current_app.config.get('WATERMARK_PATH')
             if wm_path:
+                ext = file_extension(original_filename).lstrip('.').lower()
                 processor = WatermarkProcessor(
                     path=wm_path,
                     opacity=current_app.config.get('WATERMARK_OPACITY', 0.5),
                     position=current_app.config.get('WATERMARK_POSITION', 'center'),
+                    format=_PIL_FORMATS.get(ext, 'JPEG'),
                     size=current_app.config.get('WATERMARK_SIZE', 15)
                 )
                 # apply returns a BytesIO stream

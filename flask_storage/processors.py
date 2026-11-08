@@ -1,6 +1,6 @@
 # flask_storage/processors.py
 import io
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 class WatermarkProcessor:
@@ -30,7 +30,13 @@ class WatermarkProcessor:
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
 
-        base = Image.open(file_obj).convert('RGBA')
+        image = Image.open(file_obj)
+        # Flattening an animation into a single frame would silently destroy it.
+        if getattr(image, 'is_animated', False):
+            file_obj.seek(0)
+            return file_obj
+
+        base = image.convert('RGBA')
         wm   = Image.open(self.path).convert('RGBA')
         
         bw, bh = base.size
@@ -54,17 +60,18 @@ class WatermarkProcessor:
         a = a.point(lambda p: int(p * op))
         wm = Image.merge('RGBA', (r, g, b, a))
 
-        # ── Add shadow ──
-        shadow_offset = 2
-        shadow_blur = 3
-        shadow = Image.new('RGBA', (ww + shadow_blur * 2, wh + shadow_blur * 2), (0, 0, 0, 0))
-        
-        for i in range(shadow_blur):
-            alpha = int(40 * (1 - i / shadow_blur))
-            shadow_layer = Image.new('RGBA', (ww, wh), (0, 0, 0, alpha))
-            shadow.paste(shadow_layer, (shadow_blur - i + shadow_offset, shadow_blur - i + shadow_offset))
+        # ── Add soft shadow ──
+        # A blurred silhouette keeps the mark legible on bright photos; the
+        # blur radius scales with the watermark so small images stay sharp.
+        blur = max(2, int(ww * 0.015))
+        margin = blur * 2
+        shadow = Image.new('RGBA', (ww + margin * 2, wh + margin * 2), (0, 0, 0, 0))
 
-        shadow.paste(wm, (shadow_blur, shadow_blur), mask=wm)
+        silhouette = Image.new('RGBA', (ww, wh), (0, 0, 0, 0))
+        silhouette.putalpha(wm.getchannel('A').point(lambda p: int(p * 0.6)))
+        shadow.alpha_composite(silhouette, (margin + 2, margin + 2))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(blur))
+        shadow.alpha_composite(wm, (margin, margin))
         wm = shadow
         ww, wh = wm.size
 
@@ -72,35 +79,40 @@ class WatermarkProcessor:
 
         if self.position == 'bottom-right':
             coords = (bw - ww - 20, bh - wh - 20)
-            overlay.paste(wm, coords, mask=wm)
+            overlay.alpha_composite(wm, coords)
 
         elif self.position == 'bottom-left':
             coords = (20, bh - wh - 20)
-            overlay.paste(wm, coords, mask=wm)
+            overlay.alpha_composite(wm, coords)
 
         elif self.position == 'top-right':
             coords = (bw - ww - 20, 20)
-            overlay.paste(wm, coords, mask=wm)
+            overlay.alpha_composite(wm, coords)
 
         elif self.position == 'top-left':
             coords = (20, 20)
-            overlay.paste(wm, coords, mask=wm)
+            overlay.alpha_composite(wm, coords)
 
         elif self.position == 'center':
             coords = ((bw - ww) // 2, (bh - wh) // 2)
-            overlay.paste(wm, coords, mask=wm)
+            overlay.alpha_composite(wm, coords)
 
         elif self.position == 'tiled':
             for y in range(0, bh, wh):
                 for x in range(0, bw, ww):
-                    overlay.paste(wm, (x, y), mask=wm)
+                    tile = wm.crop((0, 0, min(ww, bw - x), min(wh, bh - y)))
+                    overlay.alpha_composite(tile, (x, y))
         
         else:
             # Default to bottom-right if unknown position
             coords = (bw - ww - 20, bh - wh - 20)
-            overlay.paste(wm, coords, mask=wm)
+            overlay.alpha_composite(wm, coords)
 
-        combined = Image.alpha_composite(base, overlay).convert('RGB')
+        combined = Image.alpha_composite(base, overlay)
+        # Formats without alpha (JPEG) flatten transparent pixels to black;
+        # composite onto white first so PNG/WebP cut-outs stay clean.
+        white = Image.new('RGBA', combined.size, (255, 255, 255, 255))
+        combined = Image.alpha_composite(white, combined).convert('RGB')
 
         buffer = io.BytesIO()
         combined.save(buffer, format=self.format)
